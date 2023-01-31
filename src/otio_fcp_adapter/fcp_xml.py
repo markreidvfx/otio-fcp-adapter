@@ -692,32 +692,7 @@ class FCP7XMLParser:
 
         :return: A :class: `schema.Stack` of the tracks.
         """
-        # Determine the context
-        local_context = context.context_pushing_element(element)
-
-        tracks = []
-        media_type_elements = self._derefed_iterfind(element, "./")
-        for media_type_element in media_type_elements:
-            try:
-                track_kind = _track_kind_from_element(media_type_element)
-            except ValueError:
-                # Unexpected element
-                continue
-
-            is_audio = (track_kind == schema.TrackKind.Audio)
-            track_elements = self._derefed_iterfind(
-                media_type_element, "./track"
-            )
-            for track_element in track_elements:
-                if is_audio and not _is_primary_audio_channel(track_element):
-                    continue
-
-                tracks.append(
-                    self.track_for_element(
-                        track_element, track_kind, local_context
-                    )
-                )
-
+        tracks = self.tracks_for_element(element, context)
         markers = markers_from_element(element, context)
 
         stack = schema.Stack(
@@ -727,6 +702,47 @@ class FCP7XMLParser:
         )
 
         return stack
+
+    def tracks_for_element(self, element, context):
+        """
+        Given a element, constructs a list of OTIO tracks.
+
+        :param track_element: The track XML element.
+        :param context: The context dict for this track.
+
+        return: a list of `schema.Track`
+        """
+         # Determine the context
+        local_context = context.context_pushing_element(element)
+
+        tracks = []
+        media_type_elements = self._derefed_iterfind(element, "./")
+        for media_type_element in media_type_elements:
+            if media_type_element.tag == 'media':
+                # nested track, this assumes element only has one media tag
+                return self.tracks_for_element(media_type_element, context)
+            else:
+                try:
+                    track_kind = _track_kind_from_element(media_type_element)
+                except ValueError:
+                    # Unexpected element
+                    continue
+
+                is_audio = (track_kind == schema.TrackKind.Audio)
+                track_elements = self._derefed_iterfind(
+                    media_type_element, "./track"
+                )
+
+                for track_element in track_elements:
+                    if is_audio and not _is_primary_audio_channel(track_element):
+                        continue
+
+                    tracks.append(
+                        self.track_for_element(
+                            track_element, track_kind, local_context
+                        )
+                    )
+        return tracks
 
     def track_for_element(self, track_element, track_kind, context):
         """
@@ -1016,6 +1032,9 @@ class FCP7XMLParser:
         media_start_time = opentime.RationalTime()
         if sequence_element is not None:
             item = self.stack_for_element(sequence_element, local_context)
+            # set the name of the stack to the name that shows up visually in the timeline
+            # otherwise it will be set to the name of sequence which can be different
+            item.name = name
             # TODO: is there an applicable media start time we should be
             #       using from nested sequences?
         elif file_element is not None or generator_effect_element is not None:
