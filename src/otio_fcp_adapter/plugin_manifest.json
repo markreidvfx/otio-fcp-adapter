@@ -3,7 +3,7 @@
     "adapters" : [
         {
             "OTIO_SCHEMA" : "Adapter.1",
-            "name" : "fcp_xml",
+            "name" : "fcp_xml_nested",
             "execution_scope" : "in process",
             "filepath" : "fcp_xml.py",
             "suffixes" : ["xml"]
